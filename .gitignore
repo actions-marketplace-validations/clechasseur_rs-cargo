@@ -92,3 +92,9 @@ typings/
 
 # Rust output
 target/
+
+# IDEs
+.idea/
+
+# For macOS
+.DS_Store

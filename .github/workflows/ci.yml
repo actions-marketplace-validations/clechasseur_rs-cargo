@@ -1,31 +1,45 @@
 name: CI
 
-on: [pull_request, push]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CI: 1
 
 jobs:
   main:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Create npm configuration
         run: echo "//npm.pkg.github.com/:_authToken=${token}" >> ~/.npmrc
         env:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
+        with:
+          components: clippy,rustfmt
+          matcher: false
+          rustflags: ""
+          target: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
       - run: npm ci
       - run: npm run lint
       - run: npm run build
       - run: npm run test
 
   rust-tests-working:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
       - uses: ./
         with:
           command: check
@@ -33,10 +47,13 @@ jobs:
           args: --package working --all-targets --all-features
 
   rust-tests-not-working:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
+        with:
+          matcher: false
+          rustflags: ""
       - uses: ./
         with:
           command: build
@@ -48,15 +65,62 @@ jobs:
         continue-on-error: true
 
   rust-tests-cross:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
         with:
-          targets: aarch64-unknown-linux-gnu
+          target: aarch64-unknown-linux-gnu
       - uses: ./
         with:
           command: build
-          args: --package working --target aarch64-unknown-linux-gnu
-          use-cross: true
-    
+          toolchain: stable
+          args: --target aarch64-unknown-linux-gnu
+          working-directory: rust_tests/working
+          tool: cross
+          cache-key: 'rs-cargo-tests'
+
+  rust-tests-cargo-hack:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
+        with:
+          matcher: false
+          rustflags: ""
+      - uses: ./
+        with:
+          command: check
+          toolchain: stable
+          working-directory: rust_tests/working
+          tool: cargo-hack
+          cache-key: 'rs-cargo-tests'
+
+  rust-clippy-warnings:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
+        with:
+          components: clippy
+          matcher: false
+          rustflags: ""
+      - uses: ./
+        with:
+          command: clippy
+          args: --package clippy_warnings
+
+  rust-fmt-warnings:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
+        with:
+          components: rustfmt
+          matcher: false
+          rustflags: ""
+      - uses: ./
+        with:
+          command: fmt
+          args: --package fmt_warnings --check
+        continue-on-error: true
